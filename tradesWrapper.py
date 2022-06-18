@@ -32,7 +32,7 @@ def on_close(ws):
 def on_message(ws, message):
     json_message = json.loads(message)
 
-    #print(json_message)
+    print(json_message)
     updateframe(json_message)
 
 def createframe(Bo):
@@ -54,8 +54,9 @@ def updateframe(msg):
         #print(item)
         #DATE= pd.Timestamp(msg['time'], unit='s')
         data = {'date': item['time'], 'side': item['side'], 'price': item['price'], 'size': item['size']}
-        df = df.append(data, ignore_index=True)
+        df = pd.append([data,df],ignore_index=true)
 
+    
     if BOOL:
         df = df.iloc[:-1]
         #df.date = pd.to_datetime(df.date, unit='ms')
@@ -66,7 +67,7 @@ def updateframe(msg):
     mSize = int(df.memory_usage(deep=True).sum())
     #print(mSize)
 
-    if mSize > 10485760:#10485760
+    if mSize > 1048:#10485760
 
         updatecsv()
         df ={}

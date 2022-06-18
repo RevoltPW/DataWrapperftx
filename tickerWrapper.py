@@ -8,8 +8,8 @@ from datetime import datetime
 SOCKET='wss://ftx.com/ws/'
 SYMBOL = 'ETH-PERP'
 CHANNEL = 'ticker'
-global df, BOOL ,ts
-
+global df, firstRun ,ts, priorData
+priorData = ""
 
 def on_open(ws):
     print('opened connection')
@@ -29,38 +29,48 @@ def on_message(ws, message):
     #print(json_message)
     updateframe(json_message)
 
-def createframe(Bo):
+def createframe(firstExecution):
     global df
     df = pd.DataFrame()
     df.columns = ['date', 'price', 'bid', 'ask', 'bidSize', 'askSize']
     df.price = df.price.astype(float)
     df.bid = df.bid.astype(float)
     df.ask = df.ask.astype(float)
-    df.bid = df.bid.astype(float)
+    df.bidSize = df.bidSize.astype(float)
+    df.askSize = df.askSize.astype(float)
     df.set_index('date', inplace=True)
     print(df.keys())
-    if Bo: df.to_csv(f"{SYMBOL}_{CHANNEL}.csv", mode='w', index=False, header=True)
+    if firstExecution: df.to_csvpreviousData(f"{SYMBOL}_{CHANNEL}.csv", mode='w', index=False, header=True)
 
 def updateframe(msg):
-    global df, BOOL, ts
-    LSs = {}
-    DATE= pd.Timestamp(msg['data']['time'], unit='s')
-    LSs = {'date': DATE, 'price': float(msg['data']['last']), 'bid': msg['data']['bid'], 'ask': msg['data']['ask'], 'bidSize': msg['data']['bidSize'], 'askSize': msg['data']['askSize']}
+    global df, firstRun, ts, priorData 
+    Data = {}
 
-    df = df.append(LSs, ignore_index=True)
-    if BOOL:
-        df = df.iloc[:-1]
-        #df.date = pd.to_datetime(df.date, unit='ms')
-        df.to_csv(f"{SYMBOL}_{CHANNEL}_{ts}.csv", mode='a', index=False, header=True)
-        BOOL=False
+    lastData = (f"{msg['data']['last']}{msg['data']['bid']}{msg['data']['ask']}{msg['data']['bidSize']}{msg['data']['askSize']}")
+    
+    if priorData != lastData:
 
-    mSize = int(df.memory_usage(deep=True).sum())
-    #print(mSize)
-    if mSize > 10485760:#10485760
+        DATE = pd.Timestamp(msg['data']['time'], unit='s')
+        Data = {'date': DATE, 'price': float(msg['data']['last']), 'bid': msg['data']['bid'], 'ask': msg['data']['ask'], 'bidSize': msg['data']['bidSize'], 'askSize': msg['data']['askSize']}
+        print(Data)
+        df = df.append(Data, ignore_index=True) 
+        priorData = lastData
+        if firstRun:
+            df = df.iloc[:-1]
+            #df.date = pd.to_datetime(df.date, unit='ms')
+            df.to_csv(f"{SYMBOL}_{CHANNEL}_{ts}.csv", mode='a', index=False, header=True)
+            firstRun=False
 
-        updatecsv()
-        df ={}
-        createframe(False)
+        mSize = int(df.memory_usage(deep=True).sum())
+        print(humanbytes(mSize),humanbytes(10485760) )
+        
+        #Save dataframe to CSV when the memory size reach 10mb (customize or replace for a shedule method)
+        #just to not write de disk each time a message is recived  
+        if mSize > 10485760:#10485760
+            #Save dataframe to CSV 
+            updatecsv()
+            df ={}
+            createframe(False)
 
 def humanbytes(B):
     """Return the given bytes as a human friendly KB, MB, GB, or TB string."""
@@ -93,6 +103,8 @@ def createcsv():
         # writing data rows
         writer.writerows(data)
 
+
+#update csv "a" - Append - will append to the end of the file
 def updatecsv():
     global df, ts
 
@@ -104,9 +116,6 @@ def updatecsv():
 if __name__ == '__main__':
 
     ts = int(time.time())
-    BOOL=True
+    firstRun = True
     ws = websocket.WebSocketApp(SOCKET, on_open=on_open, on_close=on_close, on_message=on_message)
     ws.run_forever()
-    while True:
-        try:
-
